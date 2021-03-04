@@ -12,14 +12,14 @@ class OPWMetric:
         self.tolerance = 0.5e-2
 
     def __call__(self, x, y, *args, **kwargs):
-        M, N = x.shape[0], y.shape[0]
+        N, M = x.shape[0], y.shape[0]
         mid = np.sqrt(1 / N ** 2 + 1 / M ** 2)
         ii, jj = np.mgrid[1:N + 1, 1:M + 1]
         d = np.abs(ii / N - jj / M) / mid
         P = np.exp(-d ** 2 / (2 * self.delta ** 2))/ (self.delta*np.sqrt(2*np.pi))
         S = self.lambda_1 / ((ii / N - jj / M) ** 2 + 1)
         a, b = np.ones((N, 1)) / N, np.ones((M, 1)) / M
-        D = distance_matrix(x, y, p=2)**2
+        D = distance_matrix(x, y, p=2)
         K = P * np.exp((S - D) / self.lambda_2)
         K_tilde = K / a  # diag(1/a)*K
         cnt = 0
@@ -50,6 +50,11 @@ class OPWMetric:
         distance = sum(u * np.dot(U, v))
         transport = u * K * v.T
         return distance, transport
+    def calculate_assigment(self, x, y):
+        d, T = self(x,y)
+        x_assigment = y[np.argmax(T, axis=1)]
+        y_assigment = x[np.argmax(T, axis=0)]
+        return x_assigment, y_assigment
 
 
 def opw_metric():
