@@ -50,10 +50,15 @@ class OPWMetric:
         distance = sum(u * np.dot(U, v))
         transport = u * K * v.T
         return distance, transport
-    def calculate_assigment(self, x, y):
+    def calculate_assigment(self, x, y, only_indices=False):
         d, T = self(x,y)
-        x_assigment = y[np.argmax(T, axis=1)]
-        y_assigment = x[np.argmax(T, axis=0)]
+        if only_indices:
+            x_assigment = np.argmax(T, axis=1)
+            y_assigment = np.argmax(T, axis=0)
+        else:
+            x_assigment = y[np.argmax(T, axis=1)]
+            y_assigment = x[np.argmax(T, axis=0)]
+
         return x_assigment, y_assigment
 
 
