@@ -3,13 +3,13 @@ from scipy.spatial import distance_matrix
 
 
 class OPWMetric:
-    def __init__(self):
+    def __init__(self, delta=1.0, lambda_1 = 50, lambda_2 = 0.1, maxIter = 20, tolerance = 0.5e-2):
         self.p_norm = np.inf
-        self.delta = 1.0
-        self.lambda_1 = 50
-        self.lambda_2 = 0.1
-        self.maxIter = 20
-        self.tolerance = 0.5e-2
+        self.delta = delta
+        self.lambda_1 = lambda_1
+        self.lambda_2 = lambda_2
+        self.maxIter = maxIter
+        self.tolerance = tolerance
 
     def __call__(self, x, y, *args, **kwargs):
         N, M = x.shape[0], y.shape[0]
