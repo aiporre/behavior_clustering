@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.spatial import distance_matrix
 
-
 class OPWMetric:
     def __init__(self, delta=1.0, lambda_1 = 50, lambda_2 = 0.1, maxIter = 20, tolerance = 0.5e-2):
         self.p_norm = np.inf
@@ -11,7 +10,7 @@ class OPWMetric:
         self.maxIter = maxIter
         self.tolerance = tolerance
 
-    def __call__(self, x, y, *args, **kwargs):
+    def __call__(self, x, y):
         N, M = x.shape[0], y.shape[0]
         mid = np.sqrt(1 / N ** 2 + 1 / M ** 2)
         ii, jj = np.mgrid[1:N + 1, 1:M + 1]
@@ -50,6 +49,7 @@ class OPWMetric:
         distance = sum(u * np.dot(U, v))
         transport = u * K * v.T
         return distance, transport
+
     def calculate_assigment(self, x, y, only_indices=False):
         d, T = self(x,y)
         if only_indices:
