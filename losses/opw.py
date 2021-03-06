@@ -38,10 +38,10 @@ class OPWMetric:
                 v = b / np.dot(K.T, u)
                 u = 1. / np.dot(K_tilde, v)
                 stop_criterion = np.linalg.norm(sum(abs(v * np.dot(K.T, u) - b)), ord=self.p_norm)
-                print(' ==> stop criterion: ', stop_criterion)
+                # print(' ==> stop criterion: ', stop_criterion)
                 if stop_criterion < self.tolerance or np.isnan(stop_criterion):
                     break
-                print('Iteration :', cnt, ' Criterion: ', stop_criterion)
+                # print('Iteration :', cnt, ' Criterion: ', stop_criterion)
                 cnt += 1
 
         U = K * D
