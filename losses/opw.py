@@ -27,7 +27,9 @@ class OPWMetric:
         # The Sinkhorn's fixed point iteration
         # This part of code is adopted from the code: sinkhornTransport.m by Marco Cuturi
         # website: http://marcocuturi.net/SI.html
-
+        if K.sum() == 0:
+            print('Numerical error precision, consider changing regularization parameters.')
+            return np.inf, np.nan
         while cnt < self.maxIter:
             u = 1. / np.dot(K_tilde, (b / np.dot(K.T, u)))
             # print('u = ', u)
