@@ -37,9 +37,9 @@ def main(dataset_path, epochs=10):
     dataset = mit_single_mouse_create_dataset(dataset_path, with_labels=False).build().take(N)
     # dataset = tf.data.Dataset.zip((dataset, dataset)).take(20)
     dataset.length = N
-    opw_metric = OPWMetric()
+    opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100))
-    optimizer = tf.keras.optimizers.SGD(learning_rate=1e-1)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-1)
 
     timer = Timer()
     for e in range(epochs):
