@@ -29,8 +29,8 @@ class PoseEmbeddings(Model):
             else:
                 self.dropout = True
                 self.dropout_layer = Dropout(dropout)
-            self.prediction_layers = Sequential([Dense(dim) for dim in dimensions[:-2]])
-            self.prediction_layers.add(Dense(dimensions[-1], activation='linear'))
+            self.prediction_layers = Sequential([Dense(dim, activation='relu') for dim in dimensions[:-2]])
+            self.prediction_layers.add(Dense(dimensions[-1]), activation=None)
             self.use_l2_normalization = use_l2_normalization
             if use_l2_normalization:
                 self.norm_l2 = Lambda(lambda x: tf.math.l2_normalize(x, axis=1))  # L2 normalize embeddings
