@@ -1,0 +1,5 @@
+name: bc
+dependencies:
+ - dapipe=0.2.1
+ - numba=0.52.0
+ - tqdm=4.36.1
