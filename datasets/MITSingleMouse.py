@@ -27,7 +27,7 @@ label_maps = {"drink" : 0,
 
 def read_sample(sample_path):
     read_video_fcn = get_read_fcn('video')
-    sample = read_video_fcn(sample_path).astype(float)
+    sample = read_video_fcn(sample_path).astype('float32')
     return (sample-sample.min())/(sample.max()-sample.min())
 
 def create_dataset(dataset_path, with_labels=False):

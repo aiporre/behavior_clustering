@@ -110,9 +110,9 @@ def main(dataset_path, epochs=1000):
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
             # print('anchors to positive: ', d_p)
             # print('anchors to negative: ', d_n)
-            Ls = d_p - d_n + 1
+            # Ls = d_p - d_n + 1
             # print('Loss => ', Ls)
-            CC = d_p.shape[0]
+            # CC = d_p.shape[0]
             # print("number of easy triples = ", sum(d_p+1<d_n), ' out of ', CC)
             # print("number of semi-hard triples = ", sum(d_n<d_p), ' out of ', CC)
             hard_mask = (d_p < d_n) * (d_n < d_p + 1)
