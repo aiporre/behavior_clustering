@@ -80,14 +80,15 @@ def main(dataset_path, epochs=1000):
                 print('Samples equal...')
                 continue
             poses = []
-            samples = []
+            # samples = []
             # print('Computing all pose embeddings to sample pose pairs...')
             # timer.start()
             N, M = d[0].shape[0], d[1].shape[0]
-            d = tf.concat([d[0], d[1]], axis=0)
-            pose_pred = model.predict(d)
-            poses += [pose_pred[:N], pose_pred[N:]]
-            samples += [d[:N], d[N:]]
+            # d = tf.concat([d[0], d[1]], axis=0)
+            # pose_pred = model.predict(d,batch_size=8)
+            poses.append(model.predict(d[0], batch_size=8))
+            poses.append(model.predict(d[1], batch_size=8))
+            samples = [d[0], d[1]]
             # timer.lap()
             # print('Computing optimal transport...')
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
