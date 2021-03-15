@@ -160,7 +160,13 @@ def main(dataset_path, epochs=1000):
             #     plt.imshow(seq_2_x[assignment_n])
             #     plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
             #     plt.show()
-            loss = train_step(anchors, positive_samples, negative_samples).numpy()
+            batch_size = 16
+            current_index = 0
+            L = []
+            while current_index < anchors.shape[0]:
+                L.append(train_step(anchors[current_index: current_index + batch_size], positive_samples[current_index: current_index + batch_size], negative_samples[current_index: current_index + batch_size]).numpy())
+                current_index +=batch_size
+            loss = np.mean(L)
             if not np.isnan(loss):
                 losses.append(loss)
             else:
