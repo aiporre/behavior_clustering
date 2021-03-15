@@ -34,10 +34,15 @@ class Timer(object):
         self.lap_time = self.stop_time
 
 
+
+
+
 def main(dataset_path, epochs=1000):
     N = 2000
-    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(N).prefetch(10)
-    dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(N).prefetch(10)
+    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(
+        N).prefetch(10)
+    dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(
+        N).prefetch(10)
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     dataset.length = N
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
@@ -51,8 +56,20 @@ def main(dataset_path, epochs=1000):
         model.load_weights(save_model_path)
         print('Model loaded')
     except:
-        print('Model is not loaded' )
+        print('Model is not loaded')
     t = trange(epochs, desc='Training running loss: --.--e--', leave=True)
+
+    @tf.function
+    def train_step(anchors, positive_samples, negative_samples):
+        with tf.GradientTape() as tape:
+            x_a = model(anchors)
+            x_p = model(positive_samples)
+            x_n = model(negative_samples)
+            loss = lossfcn(x_a, x_p, x_n, margin=margin)
+        grads = tape.gradient(loss, model.trainable_weights)
+        optimizer.apply_gradients(zip(grads, model.trainable_weights))
+        return loss
+
     for e in t:
         print('Epoch ', e)
         # Distance threshold
@@ -70,7 +87,7 @@ def main(dataset_path, epochs=1000):
             d = tf.concat([d[0], d[1]], axis=0)
             pose_pred = model.predict(d)
             poses += [pose_pred[:N], pose_pred[N:]]
-            samples+= [d[:N].numpy(), d[N:].numpy()]
+            samples += [d[:N].numpy(), d[N:].numpy()]
             # timer.lap()
             # print('Computing optimal transport...')
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
@@ -78,7 +95,7 @@ def main(dataset_path, epochs=1000):
 
             # timer.lap()
             if distance > min_distance:
-                print('Condition not fulfilled > min_distance :', distance , '>', min_distance)
+                print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
             # print('Computing positive, and negative pairs')
             seq_1 = poses[0]
@@ -94,9 +111,11 @@ def main(dataset_path, epochs=1000):
             positive_samples = seq_2_x[positive_assigment]
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
+
             def seq_distance(x, y, i, j):
-                #np.linalg.norm(x - y)
+                # np.linalg.norm(x - y)
                 return np.random.rand() + 0.3 * abs(i - j)
+
             for i in range(num_seq_1):
                 for j in range(num_seq_2):
                     if positive_assigment[i] == j:
@@ -141,20 +160,13 @@ def main(dataset_path, epochs=1000):
             #     plt.imshow(seq_2_x[assignment_n])
             #     plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
             #     plt.show()
-
-            with tf.GradientTape() as tape:
-                x_a = model(anchors)
-                x_p = model(positive_samples)
-                x_n = model(negative_samples)
-                loss = lossfcn(x_a, x_p, x_n, margin=margin)
-            grads = tape.gradient(loss, model.trainable_weights)
-            optimizer.apply_gradients(zip(grads, model.trainable_weights))
-            loss = loss.numpy()
+            loss = train_step(anchors, positive_samples, negative_samples).numpy()
             if not np.isnan(loss):
                 losses.append(loss)
             else:
                 print('! loss is NAN ')
             t.set_description('Training running loss: {:e}'.format(np.mean(losses)))
+
             # print('Clustering sequences..')
             # timer.start()
             # gamma = 1.0
