@@ -36,8 +36,9 @@ class Timer(object):
 
 def main(dataset_path, epochs=1000):
     N = 2000
-    dataset = mit_single_mouse_create_dataset(dataset_path, with_labels=False).build().take(N).shuffle(10)
-    dataset = tf.data.Dataset.zip((dataset, dataset)).take(N)
+    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(N).prefetch(10)
+    dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(N).prefetch(10)
+    dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     dataset.length = N
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
