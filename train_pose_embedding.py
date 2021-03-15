@@ -39,10 +39,10 @@ class Timer(object):
 
 def main(dataset_path, epochs=1000):
     N = 2000
-    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(
-        N).prefetch(10)
+    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(1).build().take(
+        N).prefetch(1)
     dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(
-        N).prefetch(10)
+        N).prefetch(1)
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     dataset.length = N
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
@@ -59,7 +59,7 @@ def main(dataset_path, epochs=1000):
         print('Model is not loaded')
     t = trange(epochs, desc='Training running loss: --.--e--', leave=True)
 
-    @tf.function
+    @tf.function(experimental_relax_shapes=True)
     def train_step(anchors, positive_samples, negative_samples):
         with tf.GradientTape() as tape:
             x_a = model(anchors)
@@ -87,7 +87,7 @@ def main(dataset_path, epochs=1000):
             d = tf.concat([d[0], d[1]], axis=0)
             pose_pred = model.predict(d)
             poses += [pose_pred[:N], pose_pred[N:]]
-            samples += [d[:N].numpy(), d[N:].numpy()]
+            samples += [d[:N], d[N:]]
             # timer.lap()
             # print('Computing optimal transport...')
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
@@ -108,7 +108,7 @@ def main(dataset_path, epochs=1000):
             # Positive samples
             positive_assigment = np.argmax(transport, axis=1)
             # print('positive sampling: ', positive_assigment)
-            positive_samples = seq_2_x[positive_assigment]
+            positive_samples = tf.gather_nd(seq_2_x, [ [a] for a in positive_assigment])
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
 
@@ -125,7 +125,7 @@ def main(dataset_path, epochs=1000):
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
             # print('negative sampling: ', negative_assignment)
-            negative_samples = seq_2_x[negative_assignment]
+            negative_samples = tf.gather_nd(seq_2_x, [ [a] for a in negative_assignment])
             d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
             # print('anchors to positive: ', d_p)
@@ -141,10 +141,10 @@ def main(dataset_path, epochs=1000):
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
-            # print('anchor len           : ', anchors.shape)
-            # print('positive_samples len : ', positive_samples.shape)
-            # print('negative_samples len : ', negative_samples.shape)
-            # print('Optimizing on triplets...')
+            print('anchor len           : ', anchors.shape, type(anchors))
+            print('positive_samples len : ', positive_samples.shape, type(positive_samples))
+            print('negative_samples len : ', negative_samples.shape, type(negative_samples))
+            print('Optimizing on triplets...')
 
             # cnt=0
             # for orginal, assignment_p, assignment_n in zip(anchors, positive_assigment, negative_assignment):
