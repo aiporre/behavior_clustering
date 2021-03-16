@@ -74,8 +74,11 @@ def main(dataset_path, epochs=1000):
         print('Epoch ', e)
         # Distance threshold
         min_distance = 100.0
-        losses = []
+        losses = 0
+        cnt = 0
         for d in dataset:
+            cnt += 1
+            print("------> ", cnt)
             if d[0].shape[0] == d[1].shape[0] and (d[0] == d[1]).numpy().all():
                 print('Samples equal...')
                 continue
@@ -88,7 +91,7 @@ def main(dataset_path, epochs=1000):
             # pose_pred = model.predict(d,batch_size=8)
             poses.append(model.predict(d[0], batch_size=8))
             poses.append(model.predict(d[1], batch_size=8))
-            samples = [d[0], d[1]]
+            # samples = [d[0], d[1]]
             # timer.lap()
             # print('Computing optimal transport...')
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
@@ -102,8 +105,8 @@ def main(dataset_path, epochs=1000):
             seq_1 = poses[0]
             seq_2 = poses[1]
             num_seq_1, num_seq_2 = seq_1.shape[0], seq_2.shape[0]
-            seq_1_x = samples[0]
-            seq_2_x = samples[1]
+            seq_1_x = d[0]
+            seq_2_x = d[1]
             # print('seq_2_x.shape==> ', seq_2_x.shape)
             anchors = seq_1_x
             # Positive samples
@@ -142,10 +145,10 @@ def main(dataset_path, epochs=1000):
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
-            print('anchor len           : ', anchors.shape, type(anchors))
-            print('positive_samples len : ', positive_samples.shape, type(positive_samples))
-            print('negative_samples len : ', negative_samples.shape, type(negative_samples))
-            print('Optimizing on triplets...')
+            # print('anchor len           : ', anchors.shape, type(anchors))
+            # print('positive_samples len : ', positive_samples.shape, type(positive_samples))
+            # print('negative_samples len : ', negative_samples.shape, type(negative_samples))
+            # print('Optimizing on triplets...')
 
             # cnt=0
             # for orginal, assignment_p, assignment_n in zip(anchors, positive_assigment, negative_assignment):
@@ -163,16 +166,18 @@ def main(dataset_path, epochs=1000):
             #     plt.show()
             batch_size = 16
             current_index = 0
-            L = []
+            L = 0
+            cnt2=0
             while current_index < anchors.shape[0]:
-                L.append(train_step(anchors[current_index: current_index + batch_size], positive_samples[current_index: current_index + batch_size], negative_samples[current_index: current_index + batch_size]).numpy())
+                cnt2+=1
+                L += train_step(anchors[current_index: current_index + batch_size], positive_samples[current_index: current_index + batch_size], negative_samples[current_index: current_index + batch_size]).numpy()
                 current_index +=batch_size
-            loss = np.mean(L)
+            loss = L/cnt2
             if not np.isnan(loss):
-                losses.append(loss)
+                losses += loss
             else:
                 print('! loss is NAN ')
-            t.set_description('Training running loss: {:e}'.format(np.mean(losses)))
+            t.set_description('Training running loss: {:e}'.format(losses/cnt))
 
             # print('Clustering sequences..')
             # timer.start()
@@ -183,7 +188,7 @@ def main(dataset_path, epochs=1000):
             # labels = sc.fit_predict(adjacency_matrix)
             # print(labels)
             # timer.stop()
-        print('epoch loss: {:e}'.format(np.mean(losses)))
+        print('epoch loss: {:e}'.format(losses/cnt))
         print('saving model: ', save_model_path)
         model.save_weights(save_model_path)
 
