@@ -190,8 +190,10 @@ if __name__ == '__main__':
                         help='Name of the model to be load/saved into folder saved_models.')
     parser.add_argument("-p", "--plotting", action='store_true',
                         help="Activate plotting input triplets")
-    parser.parser.add_argument("-p:n", "--plot-samples", metavar='number_of_samples', type=int, defaults=None,
+    parser.add_argument("-p:n", "--plot-samples", metavar='number_of_samples', type=int, defaults=None,
                         help="Limits the number of samples to plot")
+    parser.add_argument('-e', "--epochs", type=int, default=10,
+                        help='Number of epochs to train')
     args = parser.parse_args()
     print(args)
-    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose, plotting=args.plotting, plot_samples=args.plot_samples)
+    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose, plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs)
