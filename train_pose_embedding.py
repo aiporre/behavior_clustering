@@ -38,13 +38,9 @@ class Timer(object):
 
 
 def main(dataset_path, epochs=1000):
-    N = 2000
-    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(1).build().take(
-        N).prefetch(1)
-    dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).shuffle(10).build().take(
-        N).prefetch(1)
+    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
+    dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
-    dataset.length = N
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
@@ -86,7 +82,7 @@ def main(dataset_path, epochs=1000):
             # samples = []
             # print('Computing all pose embeddings to sample pose pairs...')
             # timer.start()
-            N, M = d[0].shape[0], d[1].shape[0]
+            # N, M = d[0].shape[0], d[1].shape[0]
             # d = tf.concat([d[0], d[1]], axis=0)
             # pose_pred = model.predict(d,batch_size=8)
             poses.append(model.predict(d[0], batch_size=8))
