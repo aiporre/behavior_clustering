@@ -16,7 +16,7 @@ VIDEOSPATH=$1
 SIZELIMIT=$2
 EXTENSION=$3
 
-for f in $(ls -R $VIDEOSPATH | awk '/:$/&&f{s=$0;f=0}; /:$/&&!f{sub(/:$/,"");s=$0;f=1;next}; NF&&f{ print s"/"$0 };'); do
+for f in $(ls -R $VIDEOSPATH | awk '/:$/&&f{s=$0;f=0}; /:$/&&!f{sub(/:$/,"");s=$0;f=1;next}; NF&&f{ print s"/"$0 };' | grep $EXTENSION); do
   if [[ $f =~ ^.*-[0-9]+\.mpg$ ]]; then
     echo "splited video: $f";
   else

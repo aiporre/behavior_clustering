@@ -3,7 +3,7 @@ from pathlib import Path
 from dpipe.utils import get_video_length, get_read_fcn
 from dpipe import make_dataset, from_function
 from os import path
-
+from random import shuffle as shuffle_list
 label_maps = {"drink" : 0,
     "d" : 0,
     "eat" : 1,
@@ -27,11 +27,13 @@ label_maps = {"drink" : 0,
 
 def read_sample(sample_path):
     read_video_fcn = get_read_fcn('video')
-    sample = read_video_fcn(sample_path).astype(float)
+    sample = read_video_fcn(sample_path).astype('float32')
     return (sample-sample.min())/(sample.max()-sample.min())
 
-def create_dataset(dataset_path, with_labels=False):
+def create_dataset(dataset_path, with_labels=False, shuffle=False):
     files = list(map(lambda x: x.as_posix(), Path(dataset_path).rglob('*.mpg')))
+    if shuffle:
+        shuffle_list(files)
     if with_labels:
         labels = list(map(lambda x: label_maps[path.basename(x).split('_')[-2]], files))
         def read_sample_with_labels(inputs):
@@ -39,7 +41,7 @@ def create_dataset(dataset_path, with_labels=False):
             video = read_sample(path)
             return video, label
         files_with_labels = list(zip(files, labels))
-        dataset = from_function(read_sample_with_labels, files_with_labels, undetermined_shape=[0])
+        dataset = from_function(read_sample_with_labels, files_with_labels, undetermined_shape=[[0],[]])
     else:
         dataset = from_function(read_sample, files, undetermined_shape=[0])
     return dataset

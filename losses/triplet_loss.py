@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-@tf.function
+@tf.function(experimental_relax_shapes=True)
 def triplet_loss(x_a, x_p, x_n, margin=1.0):
     d_p = tf.square(tf.norm(x_a - x_p, ord='euclidean', axis=-1))
     d_n = tf.square(tf.norm(x_a - x_n, ord='euclidean', axis=-1))

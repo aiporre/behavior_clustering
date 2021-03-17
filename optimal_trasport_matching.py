@@ -3,12 +3,28 @@ from datasets import mit_single_mouse_read_sample
 from losses import OPWMetric
 import matplotlib.pyplot as plt
 
-def main(file_names, plotting):
+from models.pose_embedding import PoseEmbeddings
+
+
+def main(file_names, plotting, model_path, image_based):
     sample_1 = mit_single_mouse_read_sample(file_names[0])
     sample_2 = mit_single_mouse_read_sample(file_names[1])
-    sample_1_flatten = sample_1.reshape((sample_1.shape[0],-1))
-    sample_2_flatten = sample_2.reshape((sample_2.shape[0], -1))
-    metric = OPWMetric(maxIter=100)
+    if image_based:
+        sample_1_flatten = sample_1.reshape((sample_1.shape[0],-1))
+        sample_2_flatten = sample_2.reshape((sample_2.shape[0], -1))
+    else:
+        model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
+        try:
+            model.load_weights(model_path)
+            print('Model loaded')
+        except:
+            print('Model is not loaded' )
+        sample_1_flatten = model.predict(sample_1)
+        sample_2_flatten = model.predict(sample_2)
+
+
+    metric = OPWMetric(lambda_1=150, lambda_2=0.5)
+
     # plotting sample_1 to vs its assigments on sample_2
     if plotting:
         assign_1, assign_2 = metric.calculate_assigment(sample_1_flatten, sample_2_flatten, only_indices=True)
@@ -39,6 +55,10 @@ if __name__ == '__main__':
                         help='pair of files to containing the sequencial data inputs.')
     parser.add_argument("--plot", action='store_true',
                         help='plot image of assignments')
+    parser.add_argument("--model-path", '-m', type=str, default='saved_models/mouse/',
+                        help='Model to load path')
+    parser.add_argument('--image-based', '-im',  action='store_true',
+                        help='Calculates assignment from images as flatten vectors, otherwise uses a pose embedding. The model will initialized if the if model is given')
     args = parser.parse_args()
     print(args)
-    main(args.file_names, args.plot)
+    main(args.file_names, args.plot, args.model_path, args.image_based)
