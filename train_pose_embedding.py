@@ -37,7 +37,7 @@ class Timer(object):
 
 
 
-def main(dataset_path, saved_model_name, epochs=1000):
+def main(dataset_path, saved_model_name, verbose, epochs=1000):
     dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
@@ -46,6 +46,7 @@ def main(dataset_path, saved_model_name, epochs=1000):
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
     margin = tf.constant(0.1)
     lossfcn = triplet_loss
+    timer = Timer()
     save_model_path = f'saved_models/{saved_model_name}'
     try:
         model.load_weights(save_model_path)
@@ -73,40 +74,37 @@ def main(dataset_path, saved_model_name, epochs=1000):
         cnt = 0
         for d in dataset:
             cnt += 1
-            print("------> ", cnt)
             if d[0].shape[0] == d[1].shape[0] and (d[0] == d[1]).numpy().all():
                 print('Samples equal...')
                 continue
             poses = []
-            # samples = []
-            # print('Computing all pose embeddings to sample pose pairs...')
-            # timer.start()
-            # N, M = d[0].shape[0], d[1].shape[0]
-            # d = tf.concat([d[0], d[1]], axis=0)
-            # pose_pred = model.predict(d,batch_size=8)
+            if verbose:
+                print('Computing all pose embeddings to sample pose pairs...')
+            timer.start()
             poses.append(model.predict(d[0], batch_size=8))
             poses.append(model.predict(d[1], batch_size=8))
+            if verbose:
+                timer.lap()
+                print('Computing optimal transport...')
             # samples = [d[0], d[1]]
-            # timer.lap()
-            # print('Computing optimal transport...')
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
             distance, transport = opw_metric(poses[0], poses[1])
 
-            # timer.lap()
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
-            # print('Computing positive, and negative pairs')
+            if verbose:
+                timer.lap()
+                print('Computing positive, and negative pairs')
             seq_1 = poses[0]
             seq_2 = poses[1]
             num_seq_1, num_seq_2 = seq_1.shape[0], seq_2.shape[0]
             seq_1_x = d[0]
             seq_2_x = d[1]
-            # print('seq_2_x.shape==> ', seq_2_x.shape)
+            # Create anchors
             anchors = seq_1_x
             # Positive samples
             positive_assigment = np.argmax(transport, axis=1)
-            # print('positive sampling: ', positive_assigment)
             positive_samples = tf.gather_nd(seq_2_x, [ [a] for a in positive_assigment])
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
@@ -123,27 +121,21 @@ def main(dataset_path, saved_model_name, epochs=1000):
                         distance_matrix[i, j] = seq_distance(seq_1[i], seq_2[j], i / num_seq_1, j / num_seq_2)
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
-            # print('negative sampling: ', negative_assignment)
             negative_samples = tf.gather_nd(seq_2_x, [ [a] for a in negative_assignment])
             d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
-            # print('anchors to positive: ', d_p)
-            # print('anchors to negative: ', d_n)
-            # Ls = d_p - d_n + 1
-            # print('Loss => ', Ls)
-            # CC = d_p.shape[0]
-            # print("number of easy triples = ", sum(d_p+1<d_n), ' out of ', CC)
-            # print("number of semi-hard triples = ", sum(d_n<d_p), ' out of ', CC)
+            # Creating the hard_mask
             hard_mask = (d_p < d_n) * (d_n < d_p + 1)
-            # print("number of hard triples = ", sum(hard_mask), ' out of ', CC)
-            #
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
-            # print('anchor len           : ', anchors.shape, type(anchors))
-            # print('positive_samples len : ', positive_samples.shape, type(positive_samples))
-            # print('negative_samples len : ', negative_samples.shape, type(negative_samples))
-            # print('Optimizing on triplets...')
+            if verbose:
+                timer.lap()
+                print("number of hard triples = ", sum(hard_mask), ' out of ', len(hard_mask))
+                print('anchor len           : ', anchors.shape, type(anchors))
+                print('positive_samples len : ', positive_samples.shape, type(positive_samples))
+                print('negative_samples len : ', negative_samples.shape, type(negative_samples))
+                print('Optimizing on triplets...')
 
             # cnt=0
             # for orginal, assignment_p, assignment_n in zip(anchors, positive_assigment, negative_assignment):
@@ -173,16 +165,8 @@ def main(dataset_path, saved_model_name, epochs=1000):
             else:
                 print('! loss is NAN ')
             t.set_description('Training running loss: {:e}'.format(losses/cnt))
-
-            # print('Clustering sequences..')
-            # timer.start()
-            # gamma = 1.0
-            # adjacency_matrix = np.exp(-gamma * distance_matrix ** 2)
-            # sc = SpectralClustering(3, affinity='precomputed', n_init=100,
-            #                         assign_labels='discretize')
-            # labels = sc.fit_predict(adjacency_matrix)
-            # print(labels)
-            # timer.stop()
+            if verbose:
+                timer.stop()
         print('epoch loss: {:e}'.format(losses/cnt))
         print('saving model: ', save_model_path)
         model.save_weights(save_model_path)
@@ -196,7 +180,10 @@ if __name__ == '__main__':
     parser.add_argument("-sm", "--saved-model", metavar='some_name_of_your_model',
                         type=str,
                         help='Name of the model to be load/saved into folder saved_models.')
+    parser.add_argument("-v", "--verbose", action='store_true',
+                        type=str,
+                        help='Name of the model to be load/saved into folder saved_models.')
 
     args = parser.parse_args()
     print(args)
-    main(args.dataset_path, args.saved_model)
+    main(args.dataset_path, args.saved_model, args.verbose)
