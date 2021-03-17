@@ -37,7 +37,7 @@ class Timer(object):
 
 
 
-def main(dataset_path, epochs=1000):
+def main(dataset_path, saved_model_name, epochs=1000):
     dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
@@ -46,8 +46,7 @@ def main(dataset_path, epochs=1000):
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
     margin = tf.constant(0.1)
     lossfcn = triplet_loss
-    timer = Timer()
-    save_model_path = 'saved_models/mouse/'
+    save_model_path = f'saved_models/{saved_model_name}'
     try:
         model.load_weights(save_model_path)
         print('Model loaded')
@@ -194,6 +193,10 @@ if __name__ == '__main__':
     parser.add_argument("-dp", "--dataset-path", metavar='path_to_videos',
                         type=str,
                         help='Path to the image files')
+    parser.add_argument("-sm", "--saved-model", metavar='some_name_of_your_model',
+                        type=str,
+                        help='Name of the model to be load/saved into folder saved_models.')
+
     args = parser.parse_args()
     print(args)
-    main(args.dataset_path)
+    main(args.dataset_path, args.saved_model)
