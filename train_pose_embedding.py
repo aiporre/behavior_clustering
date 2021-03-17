@@ -37,7 +37,7 @@ class Timer(object):
 
 
 
-def main(dataset_path, saved_model_name, verbose, epochs=1000):
+def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, epochs=10):
     dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
@@ -137,20 +137,25 @@ def main(dataset_path, saved_model_name, verbose, epochs=1000):
                 print('negative_samples len : ', negative_samples.shape, type(negative_samples))
                 print('Optimizing on triplets...')
 
-            # cnt=0
-            # for orginal, assignment_p, assignment_n in zip(anchors, positive_assigment, negative_assignment):
-            #     cnt += 1
-            #     plt.figure(figsize=(10,5))
-            #     plt.subplot(1, 3, 1)
-            #     plt.title(f'original sample 1 #{cnt}')
-            #     plt.imshow(orginal)
-            #     plt.subplot(1, 3, 2)
-            #     plt.imshow(seq_2_x[assignment_p])
-            #     plt.title(f'(+) sample1 #{cnt} on sample 2 #{assignment_p}')
-            #     plt.subplot(1, 3, 3)
-            #     plt.imshow(seq_2_x[assignment_n])
-            #     plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
-            #     plt.show()
+            if plotting:
+                cnt_plot=0
+                S_anchors = anchors.numpy()
+                S_prima = seq_2_x.numpy()
+                for orginal, assignment_p, assignment_n in zip(S_anchors, positive_assigment, negative_assignment):
+                    cnt_plot += 1
+                    plt.figure(figsize=(10,5))
+                    plt.subplot(1, 3, 1)
+                    plt.title(f'original sample 1 #{cnt}')
+                    plt.imshow(orginal)
+                    plt.subplot(1, 3, 2)
+                    plt.imshow(S_prima[assignment_p])
+                    plt.title(f'(+) sample1 #{cnt} on sample 2 #{assignment_p}')
+                    plt.subplot(1, 3, 3)
+                    plt.imshow(S_prima[assignment_n])
+                    plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
+                    plt.show()
+                    if plot_samples is not None and cnt_plot>=plot_samples:
+                        break
             batch_size = 16
             current_index = 0
             L = 0
@@ -183,7 +188,10 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--verbose", action='store_true',
                         type=str,
                         help='Name of the model to be load/saved into folder saved_models.')
-
+    parser.add_argument("-p", "--plotting", action='store_true',
+                        help="Activate plotting input triplets")
+    parser.parser.add_argument("-p:n", "--plot-samples", metavar='number_of_samples', type=int, defaults=None,
+                        help="Limits the number of samples to plot")
     args = parser.parse_args()
     print(args)
-    main(args.dataset_path, args.saved_model, args.verbose)
+    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose, plotting=args.plotting, plot_samples=args.plot_samples)
