@@ -1,14 +1,16 @@
 import argparse
-from datasets import mit_single_mouse_read_sample
+from datasets import mit_single_mouse_read_sample, olympic_read_sample
 from losses import OPWMetric
 import matplotlib.pyplot as plt
 
 from models.pose_embedding import PoseEmbeddings
 
+available_dataset = {'mitsinglemouse': mit_single_mouse_read_sample,
+                     'olympicsports': olympic_read_sample}
 
-def main(file_names, plotting, model_path, image_based):
-    sample_1 = mit_single_mouse_read_sample(file_names[0])
-    sample_2 = mit_single_mouse_read_sample(file_names[1])
+def main(file_names, plotting, model_path, image_based, dataset_name):
+    sample_1 = available_dataset[dataset_name](file_names[0])
+    sample_2 = available_dataset[dataset_name](file_names[1])
     if image_based:
         sample_1_flatten = sample_1.reshape((sample_1.shape[0],-1))
         sample_2_flatten = sample_2.reshape((sample_2.shape[0], -1))
@@ -53,6 +55,8 @@ if __name__ == '__main__':
                         type=str,
                         nargs=2,
                         help='pair of files to containing the sequencial data inputs.')
+    parser.add_argument('-dn', "--dataset-name", metavar='name_of_dataset', default='mitsinglemouse',
+                        help='Name of the dataset. Options: \'mitsinglemouse\' , \'olympicsports\'')
     parser.add_argument("--plot", action='store_true',
                         help='plot image of assignments')
     parser.add_argument("--model-path", '-m', type=str, default='saved_models/mouse/',
@@ -61,4 +65,4 @@ if __name__ == '__main__':
                         help='Calculates assignment from images as flatten vectors, otherwise uses a pose embedding. The model will initialized if the if model is given')
     args = parser.parse_args()
     print(args)
-    main(args.file_names, args.plot, args.model_path, args.image_based)
+    main(args.file_names, args.plot, args.model_path, args.image_based, args.dataset_name)
