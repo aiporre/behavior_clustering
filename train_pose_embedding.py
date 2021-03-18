@@ -1,14 +1,12 @@
 import argparse
-from datasets import mit_single_mouse_create_dataset
 import tensorflow as tf
 from losses import OPWMetric, triplet_loss
 from models.pose_embedding import PoseEmbeddings
+from datasets import create_dataset
 from time import time
 import numpy as np
-from itertools import product
-from sklearn.cluster import SpectralClustering
 import matplotlib.pyplot as plt
-from tqdm import tqdm, trange
+from tqdm import trange
 
 
 class Timer(object):
@@ -34,12 +32,9 @@ class Timer(object):
         self.lap_time = self.stop_time
 
 
-
-
-
-def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, epochs=10):
-    dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
-    dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
+def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10):
+    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
+    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
@@ -105,7 +100,7 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
             anchors = seq_1_x
             # Positive samples
             positive_assigment = np.argmax(transport, axis=1)
-            positive_samples = tf.gather_nd(seq_2_x, [ [a] for a in positive_assigment])
+            positive_samples = tf.gather_nd(seq_2_x, [[a] for a in positive_assigment])
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
 
@@ -121,7 +116,7 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                         distance_matrix[i, j] = seq_distance(seq_1[i], seq_2[j], i / num_seq_1, j / num_seq_2)
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
-            negative_samples = tf.gather_nd(seq_2_x, [ [a] for a in negative_assignment])
+            negative_samples = tf.gather_nd(seq_2_x, [[a] for a in negative_assignment])
             d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
             # Creating the hard_mask
@@ -138,12 +133,12 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                 print('Optimizing on triplets...')
 
             if plotting:
-                cnt_plot=0
+                cnt_plot = 0
                 S_anchors = anchors.numpy()
                 S_prima = seq_2_x.numpy()
                 for orginal, assignment_p, assignment_n in zip(S_anchors, positive_assigment, negative_assignment):
                     cnt_plot += 1
-                    plt.figure(figsize=(10,5))
+                    plt.figure(figsize=(10, 5))
                     plt.subplot(1, 3, 1)
                     plt.title(f'original sample 1 #{cnt}')
                     plt.imshow(orginal)
@@ -154,25 +149,27 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                     plt.imshow(S_prima[assignment_n])
                     plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
                     plt.show()
-                    if plot_samples is not None and cnt_plot>=plot_samples:
+                    if plot_samples is not None and cnt_plot >= plot_samples:
                         break
             batch_size = 16
             current_index = 0
             L = 0
-            cnt2=0
+            cnt2 = 0
             while current_index < anchors.shape[0]:
-                cnt2+=1
-                L += train_step(anchors[current_index: current_index + batch_size], positive_samples[current_index: current_index + batch_size], negative_samples[current_index: current_index + batch_size]).numpy()
-                current_index +=batch_size
-            loss = L/cnt2
+                cnt2 += 1
+                L += train_step(anchors[current_index: current_index + batch_size],
+                                positive_samples[current_index: current_index + batch_size],
+                                negative_samples[current_index: current_index + batch_size]).numpy()
+                current_index += batch_size
+            loss = L / cnt2
             if not np.isnan(loss):
                 losses += loss
             else:
                 print('! loss is NAN ')
-            t.set_description('Training running loss: {:e}'.format(losses/cnt))
+            t.set_description('Training running loss: {:e}'.format(losses / cnt))
             if verbose:
                 timer.stop()
-        print('epoch loss: {:e}'.format(losses/cnt))
+        print('epoch loss: {:e}'.format(losses / cnt))
         print('saving model: ', save_model_path)
         model.save_weights(save_model_path)
 
@@ -182,6 +179,8 @@ if __name__ == '__main__':
     parser.add_argument("-dp", "--dataset-path", metavar='path_to_videos',
                         type=str,
                         help='Path to the image files')
+    parser.add_argument('-dn', "--dataset-name", metavar='name_of_dataset', default='mitsinglemouse',
+                        help='Name of the dataset. Options: \'mitsinglemouse\' , \'olympicsports\'')
     parser.add_argument("-sm", "--saved-model", metavar='some_name_of_your_model',
                         type=str,
                         help='Name of the model to be load/saved into folder saved_models.')
@@ -196,4 +195,5 @@ if __name__ == '__main__':
                         help='Number of epochs to train')
     args = parser.parse_args()
     print(args)
-    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose, plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs)
+    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose,
+         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs)
