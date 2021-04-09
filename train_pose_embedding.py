@@ -39,6 +39,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+    margin_f = 0.1
     margin = tf.constant(0.1)
     lossfcn = triplet_loss
     timer = Timer()
@@ -89,6 +90,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
             if verbose:
+                print('OPW metric distance: ',  distance)
                 timer.lap()
                 print('Computing positive, and negative pairs')
             seq_1 = poses[0]
@@ -120,7 +122,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
             # Creating the hard_mask
-            hard_mask = (d_p < d_n) * (d_n < d_p + 1)
+            hard_mask = (d_p < d_n) * (d_n < d_p + margin_f)
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
@@ -140,18 +142,18 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                     cnt_plot += 1
                     plt.figure(figsize=(10, 5))
                     plt.subplot(1, 3, 1)
-                    plt.title(f'original sample 1 #{cnt}')
+                    plt.title(f'original sample 1 #{cnt_plot}')
                     plt.imshow(orginal)
                     plt.subplot(1, 3, 2)
                     plt.imshow(S_prima[assignment_p])
-                    plt.title(f'(+) sample1 #{cnt} on sample 2 #{assignment_p}')
+                    plt.title(f'(+) sample1 #{cnt_plot} on sample 2 #{assignment_p}')
                     plt.subplot(1, 3, 3)
                     plt.imshow(S_prima[assignment_n])
-                    plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
+                    plt.title(f'(-) sample1 #{cnt_plot} on sample 2 #{assignment_n}')
                     plt.show()
                     if plot_samples is not None and cnt_plot >= plot_samples:
                         break
-            batch_size = 16
+            batch_size = 4
             current_index = 0
             L = 0
             cnt2 = 0
@@ -161,7 +163,11 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                                 positive_samples[current_index: current_index + batch_size],
                                 negative_samples[current_index: current_index + batch_size]).numpy()
                 current_index += batch_size
-            loss = L / cnt2
+                t.set_description('Training running loss B: {:e}'.format(L / cnt2))
+            if not cnt2==0:
+                loss = L / cnt2
+            else:
+                loss = np.nan
             if not np.isnan(loss):
                 losses += loss
             else:
