@@ -5,13 +5,17 @@ from os import path
 from random import shuffle as shuffle_list
 from olympic_sports import read_seq
 import numpy as np
+from skimage.transform import resize
 
 def normalize(x):
     return (x - x.min()) / (x.max() - x.min())
 
+
 def read_sample(sample_path):
     frames = read_seq(sample_path)
+    lenght = len(frames)
     sample = np.array(frames, dtype=np.float32)
+    sample = resize(sample, (lenght, 100, 100, 3), anti_aliasing=True)
     return normalize(sample)
 
 

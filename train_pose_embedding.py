@@ -126,12 +126,16 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
+            positive_assigment = positive_assigment[hard_mask]
+            negative_assignment = negative_assignment[hard_mask]
             if verbose:
                 timer.lap()
                 print("number of hard triples = ", sum(hard_mask), ' out of ', len(hard_mask))
                 print('anchor len           : ', anchors.shape, type(anchors))
                 print('positive_samples len : ', positive_samples.shape, type(positive_samples))
                 print('negative_samples len : ', negative_samples.shape, type(negative_samples))
+                print('POSITIVE-assing :', positive_assigment)
+                print('NEGATIVE-assing :', negative_assignment)
                 print('Optimizing on triplets...')
 
             if plotting:
