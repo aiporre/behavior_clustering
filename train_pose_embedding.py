@@ -91,8 +91,8 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # samples = [d[0], d[1]]
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
             # FIXME: poses are in an array?? Why?!
-            distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
 
+            distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
@@ -110,19 +110,23 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             positive_assigment = np.argmax(transport, axis=1)
             positive_samples = tf.gather_nd(sequences[1], [[a] for a in positive_assigment])
             # Negative samples
-            distance_matrix = np.zeros([num_seq_1, num_seq_2])
-
+            mid = np.sqrt(1 / num_seq_1 ** 2 + 1 / num_seq_2 ** 2)
+            ii, jj = np.mgrid[1:num_seq_1 + 1, 1:num_seq_2 + 1]
+            distance_matrix = np.random.rand(num_seq_1, num_seq_2)+0.3*np.abs(ii / num_seq_1 - jj / num_seq_2) 
+            #distance_matrix = np.zeros([num_seq_1, num_seq_2])
+            
             # FIXME: seq_distance should be also include disimilarty/distance
-            def seq_distance(x, y, i, j):
+            #def seq_distance(x, y, i, j):
                 # np.linalg.norm(x - y)
-                return np.random.rand() + 0.3 * abs(i - j)
+                # return np.random.rand() + 0.3 * abs(i - j)
             # FIXME: op is not vectorized!
             for i in range(num_seq_1):
                 for j in range(num_seq_2):
                     if positive_assigment[i] == j:
                         distance_matrix[i, j] = 0
-                    else:
-                        distance_matrix[i, j] = seq_distance(sequences[0][i], sequences[1][j], i / num_seq_1, j / num_seq_2)
+            #        else:
+            #            distance_matrix[i, j] = seq_distance(sequences[0][i], sequences[1][j], i / num_seq_1, j / num_seq_2)
+
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
             negative_samples = tf.gather_nd(sequences[1], [[a] for a in negative_assignment])
@@ -142,8 +146,8 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 print('anchor len           : ', anchors.shape, type(anchors))
                 print('positive_samples len : ', positive_samples.shape, type(positive_samples))
                 print('negative_samples len : ', negative_samples.shape, type(negative_samples))
-                # print('POSITIVE-assing :', positive_assigment)
-                # print('NEGATIVE-assing :', negative_assignment)
+                print('POSITIVE-assing :', positive_assigment)
+                print('NEGATIVE-assing :', negative_assignment)
                 print('Optimizing on triplets...')
 
             if plotting:
@@ -170,7 +174,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             current_index = 0
             L = 0
             cnt2 = 0
-            while current_index < anchors.shape[0]:
+            while current_index + batch_size <= anchors.shape[0]:
                 cnt2 += 1
                 L += train_step(anchors[current_index: current_index + batch_size],
                                 positive_samples[current_index: current_index + batch_size],
