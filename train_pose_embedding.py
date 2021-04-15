@@ -1,5 +1,9 @@
 import argparse
 import tensorflow as tf
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
+
+
 from losses import OPWMetric, triplet_loss
 from models.pose_embedding import PoseEmbeddings
 from datasets import create_dataset
