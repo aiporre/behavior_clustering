@@ -31,6 +31,8 @@ class Timer(object):
         self.start_time = self.stop_time
         self.lap_time = self.stop_time
 
+def compare_sequences(seq1, seq2):
+    return False
 
 def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10):
     dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
@@ -69,28 +71,27 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         min_distance = 100.0
         losses = 0
         cnt = 0
-        for d in dataset:
+        for sequences in dataset:
             cnt += 1
             # TODO: use tf.equal all or smth like that. Do not use numpy()
-            if d[0].shape[0] == d[1].shape[0] and (d[0] == d[1]).numpy().all():
+            if False: #compare_sequences(sequences[0], sequences[1]):
                 print('Samples equal...')
                 continue
-            poses = []
+
             if verbose:
                 print('Computing all pose embeddings to sample pose pairs...')
             timer.start()
             # RQ: => Is it possible to optimize transport together with the embedding?
             # RQ: => Can be the mining be part of the optimization? Seems totally like a stupid question but maybe not.
             # FIXME: batch size is hardcoded!
-            poses.append(model.predict(d[0], batch_size=8))
-            poses.append(model.predict(d[1], batch_size=8))
+            sequences_phi = [model.predict(sequences[0], batch_size=8), model.predict(sequences[1], batch_size=8)]
             if verbose:
                 timer.lap()
                 print('Computing optimal transport...')
             # samples = [d[0], d[1]]
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
             # FIXME: poses are in an array?? Why?!
-            distance, transport = opw_metric(poses[0], poses[1])
+            distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
 
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
@@ -100,16 +101,14 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 print('OPW metric distance: ',  distance)
                 timer.lap()
                 print('Computing positive, and negative pairs')
-            seq_1 = poses[0]
-            seq_2 = poses[1]
-            num_seq_1, num_seq_2 = seq_1.shape[0], seq_2.shape[0]
-            seq_1_x = d[0]
-            seq_2_x = d[1]
+            num_seq_1, num_seq_2 = sequences[0].shape[0], sequences[1].shape[0]
+            # seq_1_x = sequences[0]
+            # seq_2_x = sequences[1]
             # Create anchors
-            anchors = seq_1_x
+            anchors = sequences[0]
             # Positive samples
             positive_assigment = np.argmax(transport, axis=1)
-            positive_samples = tf.gather_nd(seq_2_x, [[a] for a in positive_assigment])
+            positive_samples = tf.gather_nd(sequences[1], [[a] for a in positive_assigment])
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
 
@@ -123,13 +122,13 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                     if positive_assigment[i] == j:
                         distance_matrix[i, j] = 0
                     else:
-                        distance_matrix[i, j] = seq_distance(seq_1[i], seq_2[j], i / num_seq_1, j / num_seq_2)
+                        distance_matrix[i, j] = seq_distance(sequences[0][i], sequences[1][j], i / num_seq_1, j / num_seq_2)
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
-            negative_samples = tf.gather_nd(seq_2_x, [[a] for a in negative_assignment])
+            negative_samples = tf.gather_nd(sequences[1], [[a] for a in negative_assignment])
             # FIXME: distance calculation are repeated? maybe using distance matrix is useful
-            d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
-            d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
+            d_p = np.linalg.norm(sequences_phi[0] - sequences_phi[1][positive_assigment], axis=1)
+            d_n = np.linalg.norm(sequences_phi[0] - sequences_phi[1][negative_assignment], axis=1)
             # Creating the semi-hard_mask
             # FIXME: as in https://arxiv.org/abs/1503.03832 if no semi-hard sample use the largest negative dist neg sample
             # Creating the hard_mask
@@ -143,14 +142,14 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 print('anchor len           : ', anchors.shape, type(anchors))
                 print('positive_samples len : ', positive_samples.shape, type(positive_samples))
                 print('negative_samples len : ', negative_samples.shape, type(negative_samples))
-                print('POSITIVE-assing :', positive_assigment)
-                print('NEGATIVE-assing :', negative_assignment)
+                # print('POSITIVE-assing :', positive_assigment)
+                # print('NEGATIVE-assing :', negative_assignment)
                 print('Optimizing on triplets...')
 
             if plotting:
                 cnt_plot = 0
                 S_anchors = anchors.numpy()
-                S_prima = seq_2_x.numpy()
+                S_prima = sequences[1].numpy()
                 for orginal, assignment_p, assignment_n in zip(S_anchors, positive_assigment, negative_assignment):
                     cnt_plot += 1
                     plt.figure(figsize=(10, 5))
