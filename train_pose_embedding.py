@@ -51,12 +51,13 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         print('Model is not loaded')
     t = trange(epochs, desc='Training running loss: --.--e--', leave=True)
 
-    @tf.function(experimental_relax_shapes=True)
-    def train_step(anchors, positive_samples, negative_samples):
+    # TODO: use keras iteration_step instead.. maybe?
+    @tf.function
+    def train_step(_anchors, _positive_samples, _negative_samples):
         with tf.GradientTape() as tape:
-            x_a = model(anchors)
-            x_p = model(positive_samples)
-            x_n = model(negative_samples)
+            x_a = model(_anchors)
+            x_p = model(_positive_samples)
+            x_n = model(_negative_samples)
             loss = lossfcn(x_a, x_p, x_n, margin=margin)
         grads = tape.gradient(loss, model.trainable_weights)
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
@@ -70,6 +71,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         cnt = 0
         for d in dataset:
             cnt += 1
+            # TODO: use tf.equal all or smth like that. Do not use numpy()
             if d[0].shape[0] == d[1].shape[0] and (d[0] == d[1]).numpy().all():
                 print('Samples equal...')
                 continue
@@ -77,6 +79,9 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             if verbose:
                 print('Computing all pose embeddings to sample pose pairs...')
             timer.start()
+            # RQ: => Is it possible to optimize transport together with the embedding?
+            # RQ: => Can be the mining be part of the optimization? Seems totally like a stupid question but maybe not.
+            # FIXME: batch size is hardcoded!
             poses.append(model.predict(d[0], batch_size=8))
             poses.append(model.predict(d[1], batch_size=8))
             if verbose:
@@ -84,11 +89,13 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 print('Computing optimal transport...')
             # samples = [d[0], d[1]]
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
+            # FIXME: poses are in an array?? Why?!
             distance, transport = opw_metric(poses[0], poses[1])
 
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
+            # TODO: implement print_verbose function as print_verbose("hello world :) ") as in https://stackoverflow.com/questions/5980042/how-to-implement-the-verbose-or-v-option-into-a-script
             if verbose:
                 print('OPW metric distance: ',  distance)
                 timer.lap()
@@ -106,10 +113,11 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
 
+            # FIXME: seq_distance should be also include disimilarty/distance
             def seq_distance(x, y, i, j):
                 # np.linalg.norm(x - y)
                 return np.random.rand() + 0.3 * abs(i - j)
-
+            # FIXME: op is not vectorized!
             for i in range(num_seq_1):
                 for j in range(num_seq_2):
                     if positive_assigment[i] == j:
@@ -119,15 +127,16 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
             negative_samples = tf.gather_nd(seq_2_x, [[a] for a in negative_assignment])
+            # FIXME: distance calculation are repeated? maybe using distance matrix is useful
             d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
+            # Creating the semi-hard_mask
+            # FIXME: as in https://arxiv.org/abs/1503.03832 if no semi-hard sample use the largest negative dist neg sample
             # Creating the hard_mask
             hard_mask = (d_p < d_n) * (d_n < d_p + margin_f)
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
-            positive_assigment = positive_assigment[hard_mask]
-            negative_assignment = negative_assignment[hard_mask]
             if verbose:
                 timer.lap()
                 print("number of hard triples = ", sum(hard_mask), ' out of ', len(hard_mask))
@@ -157,7 +166,8 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                     plt.show()
                     if plot_samples is not None and cnt_plot >= plot_samples:
                         break
-            batch_size = 4
+            # FIXME: batch size is hardcoded!!
+            batch_size = 16
             current_index = 0
             L = 0
             cnt2 = 0
