@@ -34,9 +34,6 @@ class Timer(object):
         self.lap_time = self.stop_time
 
 
-
-
-
 def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, epochs=10):
     dataset_1 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
     dataset_2 = mit_single_mouse_create_dataset(dataset_path, with_labels=False, shuffle=True).build()
@@ -55,12 +52,13 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
         print('Model is not loaded')
     t = trange(epochs, desc='Training running loss: --.--e--', leave=True)
 
-    @tf.function(experimental_relax_shapes=True)
-    def train_step(anchors, positive_samples, negative_samples):
+    # TODO: use keras iteration_step instead.. maybe?
+    @tf.function
+    def train_step(_anchors, _positive_samples, _negative_samples):
         with tf.GradientTape() as tape:
-            x_a = model(anchors)
-            x_p = model(positive_samples)
-            x_n = model(negative_samples)
+            x_a = model(_anchors)
+            x_p = model(_positive_samples)
+            x_n = model(_negative_samples)
             loss = lossfcn(x_a, x_p, x_n, margin=margin)
         grads = tape.gradient(loss, model.trainable_weights)
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
@@ -74,6 +72,7 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
         cnt = 0
         for d in dataset:
             cnt += 1
+            # TODO: use tf.equal all or smth like that. Do not use numpy()
             if d[0].shape[0] == d[1].shape[0] and (d[0] == d[1]).numpy().all():
                 print('Samples equal...')
                 continue
@@ -81,6 +80,9 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
             if verbose:
                 print('Computing all pose embeddings to sample pose pairs...')
             timer.start()
+            # RQ: => Is it possible to optimize transport together with the embedding?
+            # RQ: => Can be the mining be part of the optimization? Seems totally like a stupid question but maybe not.
+            # FIXME: batch size is hardcoded!
             poses.append(model.predict(d[0], batch_size=8))
             poses.append(model.predict(d[1], batch_size=8))
             if verbose:
@@ -88,11 +90,13 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                 print('Computing optimal transport...')
             # samples = [d[0], d[1]]
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
+            # FIXME: poses are in an array?? Why?!
             distance, transport = opw_metric(poses[0], poses[1])
 
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
+            # TODO: implement print_verbose function as print_verbose("hello world :) ") as in https://stackoverflow.com/questions/5980042/how-to-implement-the-verbose-or-v-option-into-a-script
             if verbose:
                 timer.lap()
                 print('Computing positive, and negative pairs')
@@ -105,14 +109,15 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
             anchors = seq_1_x
             # Positive samples
             positive_assigment = np.argmax(transport, axis=1)
-            positive_samples = tf.gather_nd(seq_2_x, [ [a] for a in positive_assigment])
+            positive_samples = tf.gather_nd(seq_2_x, [[a] for a in positive_assigment])
             # Negative samples
             distance_matrix = np.zeros([num_seq_1, num_seq_2])
 
+            # FIXME: seq_distance should be also include disimilarty/distance
             def seq_distance(x, y, i, j):
                 # np.linalg.norm(x - y)
                 return np.random.rand() + 0.3 * abs(i - j)
-
+            # FIXME: op is not vectorized!
             for i in range(num_seq_1):
                 for j in range(num_seq_2):
                     if positive_assigment[i] == j:
@@ -121,11 +126,13 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                         distance_matrix[i, j] = seq_distance(seq_1[i], seq_2[j], i / num_seq_1, j / num_seq_2)
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
-            negative_samples = tf.gather_nd(seq_2_x, [ [a] for a in negative_assignment])
+            negative_samples = tf.gather_nd(seq_2_x, [[a] for a in negative_assignment])
+            # FIXME: distance calculation are repeated? maybe using distance matrix is useful
             d_p = np.linalg.norm(seq_1 - seq_2[positive_assigment], axis=1)
             d_n = np.linalg.norm(seq_1 - seq_2[negative_assignment], axis=1)
-            # Creating the hard_mask
+            # Creating the semi-hard_mask
             hard_mask = (d_p < d_n) * (d_n < d_p + 1)
+            # FIXME: as in https://arxiv.org/abs/1503.03832 if no semi-hard sample use the largest negative dist neg sample
             anchors = anchors[hard_mask]
             positive_samples = positive_samples[hard_mask]
             negative_samples = negative_samples[hard_mask]
@@ -138,12 +145,12 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                 print('Optimizing on triplets...')
 
             if plotting:
-                cnt_plot=0
+                cnt_plot = 0
                 S_anchors = anchors.numpy()
                 S_prima = seq_2_x.numpy()
                 for orginal, assignment_p, assignment_n in zip(S_anchors, positive_assigment, negative_assignment):
                     cnt_plot += 1
-                    plt.figure(figsize=(10,5))
+                    plt.figure(figsize=(10, 5))
                     plt.subplot(1, 3, 1)
                     plt.title(f'original sample 1 #{cnt}')
                     plt.imshow(orginal)
@@ -154,25 +161,28 @@ def main(dataset_path, saved_model_name, verbose, plotting, plot_samples=None, e
                     plt.imshow(S_prima[assignment_n])
                     plt.title(f'(-) sample1 #{cnt} on sample 2 #{assignment_n}')
                     plt.show()
-                    if plot_samples is not None and cnt_plot>=plot_samples:
+                    if plot_samples is not None and cnt_plot >= plot_samples:
                         break
+            # FIXME: batch size is hardcoded!!
             batch_size = 16
             current_index = 0
             L = 0
-            cnt2=0
+            cnt2 = 0
             while current_index < anchors.shape[0]:
-                cnt2+=1
-                L += train_step(anchors[current_index: current_index + batch_size], positive_samples[current_index: current_index + batch_size], negative_samples[current_index: current_index + batch_size]).numpy()
-                current_index +=batch_size
-            loss = L/cnt2
+                cnt2 += 1
+                L += train_step(anchors[current_index: current_index + batch_size],
+                                positive_samples[current_index: current_index + batch_size],
+                                negative_samples[current_index: current_index + batch_size]).numpy()
+                current_index += batch_size
+            loss = L / cnt2
             if not np.isnan(loss):
                 losses += loss
             else:
                 print('! loss is NAN ')
-            t.set_description('Training running loss: {:e}'.format(losses/cnt))
+            t.set_description('Training running loss: {:e}'.format(losses / cnt))
             if verbose:
                 timer.stop()
-        print('epoch loss: {:e}'.format(losses/cnt))
+        print('epoch loss: {:e}'.format(losses / cnt))
         print('saving model: ', save_model_path)
         model.save_weights(save_model_path)
 
@@ -196,4 +206,5 @@ if __name__ == '__main__':
                         help='Number of epochs to train')
     args = parser.parse_args()
     print(args)
-    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose, plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs)
+    main(dataset_path=args.dataset_path, saved_model_name=args.saved_model, verbose=args.verbose,
+         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs)
