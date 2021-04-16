@@ -68,7 +68,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
     for e in t:
         print('Epoch ', e)
         # Distance threshold
-        min_distance = 100.0
+        min_distance = 0.7
         losses = 0
         cnt = 0
         for sequences in dataset:
@@ -146,8 +146,8 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 print('anchor len           : ', anchors.shape, type(anchors))
                 print('positive_samples len : ', positive_samples.shape, type(positive_samples))
                 print('negative_samples len : ', negative_samples.shape, type(negative_samples))
-                print('POSITIVE-assing :', positive_assigment)
-                print('NEGATIVE-assing :', negative_assignment)
+                #print('POSITIVE-assing :', positive_assigment)
+                #:xprint('NEGATIVE-assing :', negative_assignment)
                 print('Optimizing on triplets...')
 
             if plotting:
@@ -174,6 +174,11 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             current_index = 0
             L = 0
             cnt2 = 0
+            if batch_size > anchors.shape[0]:
+                if verbose:
+                    print(' skipping not enough samples for training < batchsize')
+                continue
+
             while current_index + batch_size <= anchors.shape[0]:
                 cnt2 += 1
                 L += train_step(anchors[current_index: current_index + batch_size],
