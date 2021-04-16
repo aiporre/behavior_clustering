@@ -112,9 +112,9 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # Negative samples
             mid = np.sqrt(1 / num_seq_1 ** 2 + 1 / num_seq_2 ** 2)
             ii, jj = np.mgrid[1:num_seq_1 + 1, 1:num_seq_2 + 1]
-            distance_matrix = np.random.rand(num_seq_1, num_seq_2)+0.3*np.abs(ii / num_seq_1 - jj / num_seq_2) 
+            distance_matrix = np.random.rand(num_seq_1, num_seq_2)+0.3*np.abs(ii / num_seq_1 - jj / num_seq_2)
             #distance_matrix = np.zeros([num_seq_1, num_seq_2])
-            
+
             # FIXME: seq_distance should be also include disimilarty/distance
             #def seq_distance(x, y, i, j):
                 # np.linalg.norm(x - y)
@@ -176,7 +176,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             cnt2 = 0
             if batch_size > anchors.shape[0]:
                 if verbose:
-                    print(' skipping not enough samples for training < batchsize')
+                    print('=> skipping not enough samples for training < batchsize')
                 continue
 
             while current_index + batch_size <= anchors.shape[0]:
