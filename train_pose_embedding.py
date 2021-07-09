@@ -40,8 +40,8 @@ def compare_sequences(seq1, seq2):
     return False
 
 def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None):
-    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
-    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
+    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
+    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
@@ -228,6 +228,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         print('epoch loss: {:e}'.format(losses / cnt))
         print('saving model: ', save_model_path)
         model.save_weights(save_model_path)
+        t.update(e)
 
 
 if __name__ == '__main__':
