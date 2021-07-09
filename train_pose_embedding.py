@@ -10,7 +10,7 @@ from datasets import create_dataset
 from time import time
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import trange
+from tqdm import trange, tqdm
 #tf.debugging.set_log_device_placement(True)
 
 
@@ -39,7 +39,7 @@ class Timer(object):
 def compare_sequences(seq1, seq2):
     return False
 
-def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10):
+def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None):
     dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
     dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
@@ -69,10 +69,29 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         grads = tape.gradient(loss, model.trainable_weights)
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
         return loss
+
+    # Distance threshold
+    if min_distance is None:
+        print('Estimating of minimal distance. This can take a while')
+        distances = []
+        for sequences in tqdm(dataset.take(20), total=20):
+            if compare_sequences(sequences[0], sequences[1]):
+                print('Samples equal...')
+                continue
+            sequences_phi = [model.predict(sequences[0], batch_size=8), model.predict(sequences[1], batch_size=8)]
+            distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
+            distances.append(distance)
+        if plotting:
+            plt.figure()
+            plt.hist(distances)
+            plt.title('Distribution of distances extracted')
+            plt.show()
+        min_distance = 0.9 * max(distances)
+        print('New min_distance is now: ', min_distance)
+
+
     for e in t:
         print('Epoch ', e)
-        # Distance threshold
-        min_distance = 1.0
         losses = 0
         cnt = 0
         for sequences in dataset:
@@ -190,10 +209,9 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
 
             while current_index + batch_size <= anchors.shape[0]:
                 cnt2 += 1
-                loss = train_step(anchors[current_index: current_index + batch_size],
+                L += train_step(anchors[current_index: current_index + batch_size],
                                 positive_samples[current_index: current_index + batch_size],
-                                negative_samples[current_index: current_index + batch_size])
-                L += loss.numpy()
+                                negative_samples[current_index: current_index + batch_size]).numpy()
                 current_index += batch_size
                 t.set_description('Training running loss B: {:e}'.format(L / cnt2))
             if not cnt2==0:
@@ -230,7 +248,9 @@ if __name__ == '__main__':
                         help="Limits the number of samples to plot")
     parser.add_argument('-e', "--epochs", type=int, default=10,
                         help='Number of epochs to train')
+    parser.add_argument('--min-dist', metavar='min-dist', default=None, type=float,
+                        help="minimal distance to consider sequence within the curriculum learning")
     args = parser.parse_args()
     print(args)
     main(dataset_path=args.dataset_path, dataset_name=args.dataset_name, saved_model_name=args.saved_model, verbose=args.verbose,
-         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs)
+         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist)
