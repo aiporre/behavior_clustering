@@ -68,7 +68,6 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         grads = tape.gradient(loss, model.trainable_weights)
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
         return loss
-
     for e in t:
         print('Epoch ', e)
         # Distance threshold
@@ -141,9 +140,10 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # FIXME: as in https://arxiv.org/abs/1503.03832 if no semi-hard sample use the largest negative dist neg sample
             # Creating the hard_mask
             hard_mask = (d_p < d_n) * (d_n < d_p + margin_f)
-            anchors = anchors[hard_mask]
-            positive_samples = positive_samples[hard_mask]
-            negative_samples = negative_samples[hard_mask]
+            hard_indices = [i for i, m in enumerate(hard_mask) if m]
+            anchors = tf.gather(anchors, hard_indices)
+            positive_samples = tf.gather(positive_samples, hard_indices)
+            negative_samples = tf.gather(negative_samples, hard_indices)
             if verbose:
                 timer.lap()
                 print("number of hard triples = ", sum(hard_mask), ' out of ', len(hard_mask))
