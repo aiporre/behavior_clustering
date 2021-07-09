@@ -5,10 +5,10 @@ from tensorflow.keras.layers.experimental.preprocessing import RandomFlip, Rando
 import tensorflow as tf
 
 class PoseEmbeddings(Model):
-        def __init__(self, image_size = (224,224), dimensions = [256,128], dropout = None, use_l2_normalization=True, base="VGG16"):
+        def __init__(self, image_size = (224,224), dimensions = [256,128], dropout = None, use_l2_normalization=True, base="vgg16"):
             super(PoseEmbeddings, self).__init__()
             self.image_shape = image_size + (3,)
-            if base.lower() == 'VGG16': 
+            if base.lower() == 'vgg16': 
                 self.base_model = VGG16(include_top=False,
                                          weights='imagenet',
                                          input_tensor=None,
@@ -16,9 +16,9 @@ class PoseEmbeddings(Model):
                                          pooling=None,
                                          classifier_activation='softmax')
             else: 
-                self.augment = Sequential([
-                             RandomFlip('horizontal'),
-                             RandomRotation(0.2)])
+                #self.augment = Sequential([
+                #             RandomFlip('horizontal'),
+                #             RandomRotation(0.2)])
                 self.base_model = Sequential(name='base_model')
                 self.base_model.add(Conv2D(32, (3, 3), activation='relu', input_shape=self.image_shape))
                 self.base_model.add(MaxPooling2D((2, 2)))
