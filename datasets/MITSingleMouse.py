@@ -4,6 +4,8 @@ from dpipe.utils import get_video_length, get_read_fcn
 from dpipe import make_dataset, from_function
 from os import path
 from random import shuffle as shuffle_list
+from skimage.transform import resize
+
 label_maps = {"drink" : 0,
     "d" : 0,
     "eat" : 1,
@@ -25,10 +27,22 @@ label_maps = {"drink" : 0,
     "w" : 7
 }
 
+# def read_sample(sample_path):
+#     read_video_fcn = get_read_fcn('video')
+#     sample = read_video_fcn(sample_path).astype('float32')
+#     return (sample-sample.min())/(sample.max()-sample.min())
+
+
+def normalize(x):
+    return (x - x.min()) / (x.max() - x.min())
+
+
 def read_sample(sample_path):
     read_video_fcn = get_read_fcn('video')
     sample = read_video_fcn(sample_path).astype('float32')
-    return (sample-sample.min())/(sample.max()-sample.min())
+    length = sample.shape[0]
+    sample = resize(sample, (length, 240, 320, 3), anti_aliasing=True)
+    return normalize(sample)
 
 def create_dataset(dataset_path, with_labels=False, shuffle=False):
     files = list(map(lambda x: x.as_posix(), Path(dataset_path).rglob('*.mpg')))
