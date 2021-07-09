@@ -1,7 +1,7 @@
 import argparse
 import tensorflow as tf
-gpu_devices = tf.config.experimental.list_physical_devices('GPU')
-for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
+#gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+#for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
 
 
 from losses import OPWMetric, triplet_loss
@@ -11,6 +11,7 @@ from time import time
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import trange
+#tf.debugging.set_log_device_placement(True)
 
 
 class Timer(object):
@@ -71,7 +72,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
     for e in t:
         print('Epoch ', e)
         # Distance threshold
-        min_distance = 0.7
+        min_distance = 1.0
         losses = 0
         cnt = 0
         for sequences in dataset:
@@ -141,6 +142,10 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # Creating the hard_mask
             hard_mask = (d_p < d_n) * (d_n < d_p + margin_f)
             hard_indices = [i for i, m in enumerate(hard_mask) if m]
+            if len(hard_indices) == 0:
+                if verbose:
+                    print('no semi-hard samples has been found, skipping...')
+                continue
             anchors = tf.gather(anchors, hard_indices)
             positive_samples = tf.gather(positive_samples, hard_indices)
             negative_samples = tf.gather(negative_samples, hard_indices)
@@ -185,9 +190,10 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
 
             while current_index + batch_size <= anchors.shape[0]:
                 cnt2 += 1
-                L += train_step(anchors[current_index: current_index + batch_size],
+                loss = train_step(anchors[current_index: current_index + batch_size],
                                 positive_samples[current_index: current_index + batch_size],
-                                negative_samples[current_index: current_index + batch_size]).numpy()
+                                negative_samples[current_index: current_index + batch_size])
+                L += loss.numpy()
                 current_index += batch_size
                 t.set_description('Training running loss B: {:e}'.format(L / cnt2))
             if not cnt2==0:
