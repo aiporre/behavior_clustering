@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 #tf.debugging.set_log_device_placement(True)
-from multiprocessing import Pool
+
 class Timer(object):
     def __init__(self):
         self.start_time = 0
@@ -48,9 +48,13 @@ class Timer(object):
 def compare_sequences(seq1, seq2):
     return False
 
-def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None, save_iters=100, batch_size = 16, max_opts=5):
-    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
-    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
+def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None, save_iters=100, batch_size = 16, max_opts=5, binary=False):
+    if binary:
+        dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=True).build()
+        dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=True).build()
+    else:
+        dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=False).parallelize_extraction().build()
+        dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=False).parallelize_extraction().build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
@@ -296,7 +300,10 @@ if __name__ == '__main__':
     parser.add_argument('--max-opts', metavar='max-opts', default=5, type=int,
                         help="Maximal optimization steps")
 
+    parser.add_argument('--binary', action="store_true",
+                        help="Sets dataset to create/load a binaries files. Meaning that it creates binary files from the orignal dataset.")
+
     args = parser.parse_args()
     print(args)
     main(dataset_path=args.dataset_path, dataset_name=args.dataset_name, saved_model_name=args.saved_model, verbose=args.verbose,
-         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist, save_iters=args.save_iters, batch_size=args.batch_size, max_opts=args.max_opts)
+         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist, save_iters=args.save_iters, batch_size=args.batch_size, max_opts=args.max_opts, binary=args.binary)
