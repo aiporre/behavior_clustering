@@ -40,8 +40,8 @@ def compare_sequences(seq1, seq2):
     return False
 
 def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None):
-    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
-    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
+    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
+    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
@@ -128,10 +128,10 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # seq_1_x = sequences[0]
             # seq_2_x = sequences[1]
             # Create anchors
-            anchors = sequences[0]
+            # anchors = sequences[0]
             # Positive samples
             positive_assigment = np.argmax(transport, axis=1)
-            positive_samples = tf.gather_nd(sequences[1], [[a] for a in positive_assigment])
+            # positive_samples = tf.gather_nd(sequences[1], [[a] for a in positive_assigment])
             # Negative samples
             mid = np.sqrt(1 / num_seq_1 ** 2 + 1 / num_seq_2 ** 2)
             ii, jj = np.mgrid[1:num_seq_1 + 1, 1:num_seq_2 + 1]
@@ -152,7 +152,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
 
 
             negative_assignment = np.argmax(distance_matrix, axis=1)
-            negative_samples = tf.gather_nd(sequences[1], [[a] for a in negative_assignment])
+            # negative_samples = tf.gather_nd(sequences[1], [[a] for a in negative_assignment])
             # FIXME: distance calculation are repeated? maybe using distance matrix is useful
             d_p = np.linalg.norm(sequences_phi[0] - sequences_phi[1][positive_assigment], axis=1)
             d_n = np.linalg.norm(sequences_phi[0] - sequences_phi[1][negative_assignment], axis=1)
@@ -165,9 +165,11 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 if verbose:
                     print('no semi-hard samples has been found, skipping...')
                 continue
-            anchors = tf.gather(anchors, hard_indices)
-            positive_samples = tf.gather(positive_samples, hard_indices)
-            negative_samples = tf.gather(negative_samples, hard_indices)
+            positive_assigment = positive_assigment[hard_indices]
+            negative_assignment = negative_assignment[hard_indices]
+            anchors = tf.gather(sequences[0], hard_indices)
+            positive_samples = tf.gather(sequences[1], positive_assigment)
+            negative_samples = tf.gather(sequences[1], negative_assignment)
             if verbose:
                 timer.lap()
                 print("number of hard triples = ", sum(hard_mask), ' out of ', len(hard_mask))
