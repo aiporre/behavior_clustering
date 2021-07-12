@@ -28,11 +28,11 @@ class OPWMetric:
         # This part of code is adopted from the code: sinkhornTransport.m by Marco Cuturi
         # website: http://marcocuturi.net/SI.html
         if K.sum() == 0:
-            print('Numerical error precision, consider changing regularization parameters.')
+            # print('Numerical error precision, consider changing regularization parameters.')
             return np.inf, np.nan
         while cnt < self.maxIter:
             u = 1. / np.dot(K_tilde, (b / np.dot(K.T, u)))
-            # print('u = ', u)
+            # print(f'cnt ({id}) = ', cnt)
             cnt += 1
             # check the stopping criterion every 20 fixed point iterations
             if cnt % 20 == 0 or cnt == self.maxIter:
@@ -45,11 +45,11 @@ class OPWMetric:
                     break
                 print('Iteration :', cnt, ' Criterion: ', stop_criterion)
                 cnt += 1
-
         U = K * D
         # v = b / np.dot(K.T, u)
         distance = sum(u * np.dot(U, v))
         transport = u * K * v.T
+        # print('I am out the while ', id)
         return distance, transport
 
     def calculate_assigment(self, x, y, only_indices=False):

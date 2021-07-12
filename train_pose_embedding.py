@@ -1,7 +1,17 @@
 import argparse
 import tensorflow as tf
-#gpu_devices = tf.config.experimental.list_physical_devices('GPU')
-#for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
+# try:
+#     # Disable all GPUS
+#     tf.config.set_visible_devices([], 'GPU')
+#     visible_devices = tf.config.get_visible_devices()
+#     for device in visible_devices:
+#         assert device.device_type != 'GPU'
+# except:
+#   # Invalid device or cannot modify virtual devices once initialized.
+#   print('CANNOT DISABLE GPUs')
+#   pass
 
 
 from losses import OPWMetric, triplet_loss
@@ -12,8 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 #tf.debugging.set_log_device_placement(True)
-
-
+from multiprocessing import Pool
 class Timer(object):
     def __init__(self):
         self.start_time = 0
@@ -39,9 +48,9 @@ class Timer(object):
 def compare_sequences(seq1, seq2):
     return False
 
-def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None):
-    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
-    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).build()
+def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None, save_iters=100):
+    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
+    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
     opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
     model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
@@ -56,7 +65,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         print('Model loaded')
     except:
         print('Model is not loaded')
-    t = trange(epochs, desc='Training running loss: --.--e--', leave=True)
+    t_epochs = trange(epochs, desc='Training running loss: --.--e--', leave=True)
 
     # TODO: use keras iteration_step instead.. maybe?
     @tf.function
@@ -90,14 +99,17 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         print('New min_distance is now: ', min_distance)
 
 
-    for e in t:
+    for e in t_epochs:
+        t_dataset = trange(dataset_1.length, desc='Training running loss: --.--e--', leave=True)
         print('Epoch ', e)
         losses = 0
         cnt = 0
+        save_iters_cnt = 0
         for sequences in dataset:
             cnt += 1
+            print('processing seg cnt=', cnt)
             # TODO: use tf.equal all or smth like that. Do not use numpy()
-            if False: #compare_sequences(sequences[0], sequences[1]):
+            if compare_sequences(sequences[0], sequences[1]):
                 print('Samples equal...')
                 continue
 
@@ -116,6 +128,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # FIXME: poses are in an array?? Why?!
 
             distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
+            min_distance = 0.9 * min_distance + 0.3 * distance
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
                 continue
@@ -215,7 +228,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                                 positive_samples[current_index: current_index + batch_size],
                                 negative_samples[current_index: current_index + batch_size]).numpy()
                 current_index += batch_size
-                t.set_description('Training running loss B: {:e}'.format(L / cnt2))
+                t_dataset.set_description('Training running loss B: {:e}'.format(L / cnt2))
             if not cnt2==0:
                 loss = L / cnt2
             else:
@@ -224,14 +237,27 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                 losses += loss
             else:
                 print('! loss is NAN ')
-            t.set_description('Training running loss: {:e}'.format(losses / cnt))
+            t_dataset.set_description('Training running loss: {:e}'.format(losses / cnt))
+
+            # saving after save iters
+            save_iters_cnt += cnt2
+            if save_iters_cnt > save_iters:
+                model.save_weights(save_model_path)
+                if verbose:
+                    print('Model saved after: ', save_iters_cnt, ' optimization steps.')
+                save_iters_cnt = 0
+
             if verbose:
                 timer.stop()
+            t_dataset.update(1)
+
         print('epoch loss: {:e}'.format(losses / cnt))
         print('saving model: ', save_model_path)
         model.save_weights(save_model_path)
-        t.update(e)
-
+        t_epochs.set_description('Training running loss: {:e}'.format(losses / cnt))
+        t_epochs.update(1)
+        t_dataset.close()
+    t_epochs.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -253,7 +279,10 @@ if __name__ == '__main__':
                         help='Number of epochs to train')
     parser.add_argument('--min-dist', metavar='min-dist', default=None, type=float,
                         help="minimal distance to consider sequence within the curriculum learning")
+    parser.add_argument('--save-iters', metavar='save-iters', default=100, type=int,
+                        help="number of iterations to save weights")
+
     args = parser.parse_args()
     print(args)
     main(dataset_path=args.dataset_path, dataset_name=args.dataset_name, saved_model_name=args.saved_model, verbose=args.verbose,
-         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist)
+         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist, save_iters=args.save_iters)
