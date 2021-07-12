@@ -17,7 +17,8 @@ def main(file_names, plotting, model_path, image_based, dataset_name):
     else:
         model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
         try:
-            model.load_weights(model_path)
+            save_model_path = f'saved_models/{model_path}'
+            model.load_weights(save_model_path)
             print('Model loaded')
         except:
             print('Model is not loaded' )

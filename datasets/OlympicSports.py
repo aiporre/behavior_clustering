@@ -6,6 +6,7 @@ from random import shuffle as shuffle_list
 from olympic_sports import read_seq
 import numpy as np
 from skimage.transform import resize
+label_maps = {}
 
 def normalize(x):
     return (x - x.min()) / (x.max() - x.min())
