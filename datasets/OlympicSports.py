@@ -8,6 +8,7 @@ import numpy as np
 from skimage.transform import resize
 import os
 from tqdm import tqdm
+label_maps = {}
 
 def normalize(x):
     return (x - x.min()) / (x.max() - x.min())

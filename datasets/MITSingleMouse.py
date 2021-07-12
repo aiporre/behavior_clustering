@@ -29,6 +29,16 @@ label_maps = {"drink" : 0,
     "walk" : 7,
     "w" : 7
 }
+label_maps_unique = {"drink" : 0,
+    "eat" : 1,
+    "groom" : 2,
+    "hang" : 3,
+    "micromovement" : 4,
+    "rear": 5,
+    "rest" : 6,
+    "walk" : 7,
+}
+
 
 # def read_sample(sample_path):
 #     read_video_fcn = get_read_fcn('video')
