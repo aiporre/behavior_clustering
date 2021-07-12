@@ -14,8 +14,8 @@ def compare_sequences(seq1, seq2):
 def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None):
     dataset = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=True, shuffle=True).build()
     label_maps = get_label_map(dataset_name)
-    model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
-    model.build(input_shape=(None,100,100,3))
+    model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True, base='CNN')
+    # model.build(input_shape=(None,100,100,3))
     save_model_path = f'saved_models/{saved_model_name}'
     try:
         model.load_weights(save_model_path)
@@ -26,7 +26,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
 
     pose_df = pd.DataFrame()
     cnt = 0
-    N = 5
+    N = 100
     for sequence, label in tqdm(dataset.take(N).as_numpy_iterator(), total=N):
         cnt += 1
         sequences_phi = model.predict(sequence, batch_size=8)
