@@ -2,16 +2,16 @@ import argparse
 import tensorflow as tf
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
-# try:
-#     # Disable all GPUS
-#     tf.config.set_visible_devices([], 'GPU')
-#     visible_devices = tf.config.get_visible_devices()
-#     for device in visible_devices:
-#         assert device.device_type != 'GPU'
-# except:
-#   # Invalid device or cannot modify virtual devices once initialized.
-#   print('CANNOT DISABLE GPUs')
-#   pass
+#try:
+#    # Disable all GPUS
+#    tf.config.set_visible_devices([], 'GPU')
+#    visible_devices = tf.config.get_visible_devices()
+#    for device in visible_devices:
+#        assert device.device_type != 'GPU'
+#except:
+#  # Invalid device or cannot modify virtual devices once initialized.
+#  print('CANNOT DISABLE GPUs')
+#  pass
 
 
 from losses import OPWMetric, triplet_loss
@@ -56,8 +56,8 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=False).parallelize_extraction().build()
         dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=False).parallelize_extraction().build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
-    opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
-    model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
+    opw_metric = OPWMetric(lambda_1=100, lambda_2=0.25)
+    model = PoseEmbeddings(image_size=(224, 224), use_l2_normalization=True, base='cnn')
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
     margin_f = 0.1
     margin = tf.constant(0.1)
@@ -95,6 +95,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # s1 = s1[:min(num_seq_1, batch_size*max_opts)]
             # s2 = s2[:min(num_seq_2, batch_size*max_opts)]
             sequences_phi = [model.predict(s1, batch_size=8), model.predict(s2, batch_size=8)]
+            
             distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
             distances.append(distance)
         if plotting:
@@ -125,6 +126,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
 
             if compare_sequences(sequence_1, sequence_2):
                 print('Samples equal...')
+                t_dataset.update(1) 
                 continue
 
             if verbose:
@@ -142,9 +144,14 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # FIXME: poses are in an array?? Why?!
 
             distance, transport = opw_metric(sequence_1_phi, sequence_2_phi)
+            print('transport: ', transport)
+            print('mean_phi 1', sequence_1_phi.sum())
+            print('mean phi 2', sequence_2_phi.sum())
             min_distance = 0.9 * min_distance + 0.3 * distance
+            print('new min distace: ', min_distance )
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
+                t_dataset.update(1)
                 continue
             # TODO: implement print_verbose function as print_verbose("hello world :) ") as in https://stackoverflow.com/questions/5980042/how-to-implement-the-verbose-or-v-option-into-a-script
             if verbose:
@@ -191,8 +198,9 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             if len(hard_indices) == 0:
                 if verbose:
                     print('no semi-hard samples has been found, skipping...')
+                t_dataset.update(1)
                 continue
-            hard_indices = np.random.choice(hard_indices, size=batch_size*max_opts)
+            hard_indices = np.random.choice(hard_indices, size=min(batch_size*max_opts, len(hard_indices)))
             positive_assigment = positive_assigment[hard_indices]
             negative_assignment = negative_assignment[hard_indices]
             anchors = tf.gather(sequence_1, hard_indices)

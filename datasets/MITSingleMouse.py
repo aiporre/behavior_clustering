@@ -91,16 +91,21 @@ def create_dataset(dataset_path, with_labels=False, shuffle=False, binary=False)
             os.mkdir(dataset_path_mod)
         print('Creating binary files for mouse dfeault dataset in ', dataset_path, ". This might take a while.")
         def write_sample(f):
-            if isinstance(f, bytes):
-                f = f.decode()
-            value = read_sample(f)
-            fname, _ = os.path.splitext(os.path.basename(f))
-            inner_dir = Path(f).parent.as_posix().replace(dataset_path, "")
-            inner_dir = inner_dir[1:] if inner_dir.startswith(os.path.sep) else inner_dir
-            p_join = os.path.join(dataset_path_mod, inner_dir, fname + ".npy")
-            if not os.path.exists(p_join):
-                os.makedirs(Path(p_join).parent, exist_ok=True)
-            np.save(p_join, value)
+            try:
+                if isinstance(f, bytes):
+                    f = f.decode()
+                value = read_sample(f)
+                fname, _ = os.path.splitext(os.path.basename(f))
+                inner_dir = Path(f).parent.as_posix().replace(dataset_path, "")
+                inner_dir = inner_dir[1:] if inner_dir.startswith(os.path.sep) else inner_dir
+                p_join = os.path.join(dataset_path_mod, inner_dir, fname + ".npy")
+                if not os.path.exists(p_join):
+                    os.makedirs(Path(p_join).parent, exist_ok=True)
+                np.save(p_join, value)
+            except Exception as e:
+                print('Error in file: ', f)
+                print(e)
+
             return 1
         dataset = from_function(write_sample, files).parallelize_extraction()
         for value in tqdm(dataset.build().as_numpy_iterator(), desc="Creating binaries MitSingleDataset: ", total=len(files)):

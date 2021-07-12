@@ -63,14 +63,18 @@ def create_dataset(dataset_path, with_labels=False, shuffle=False, binary=False)
         def write_sample(f):
             if isinstance(f, bytes):
                 f = f.decode()
-            value = read_sample(f)
-            fname, _ = os.path.splitext(os.path.basename(f))
-            inner_dir = Path(f).parent.as_posix().replace(dataset_path, "")
-            inner_dir = inner_dir[1:] if inner_dir.startswith(os.path.sep) else inner_dir
-            p_join = os.path.join(dataset_path_mod, inner_dir, fname + ".npy")
-            if not os.path.exists(p_join):
-                os.makedirs(Path(p_join).parent, exist_ok=True)
-            np.save(p_join, value)
+            try:
+                value = read_sample(f)
+                fname, _ = os.path.splitext(os.path.basename(f))
+                inner_dir = Path(f).parent.as_posix().replace(dataset_path, "")
+                inner_dir = inner_dir[1:] if inner_dir.startswith(os.path.sep) else inner_dir
+                p_join = os.path.join(dataset_path_mod, inner_dir, fname + ".npy")
+                if not os.path.exists(p_join):
+                    os.makedirs(Path(p_join).parent, exist_ok=True)
+                np.save(p_join, value)
+            except Exception as e:
+                print('Error in file ', f)
+                pass
             return 1
 
         dataset = from_function(write_sample, files).parallelize_extraction()
