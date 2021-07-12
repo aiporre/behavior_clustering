@@ -2,16 +2,16 @@ import argparse
 import tensorflow as tf
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 for device in gpu_devices: tf.config.experimental.set_memory_growth(device, True)
-# try:
-#     # Disable all GPUS
-#     tf.config.set_visible_devices([], 'GPU')
-#     visible_devices = tf.config.get_visible_devices()
-#     for device in visible_devices:
-#         assert device.device_type != 'GPU'
-# except:
-#   # Invalid device or cannot modify virtual devices once initialized.
-#   print('CANNOT DISABLE GPUs')
-#   pass
+#try:
+#    # Disable all GPUS
+#    tf.config.set_visible_devices([], 'GPU')
+#    visible_devices = tf.config.get_visible_devices()
+#    for device in visible_devices:
+#        assert device.device_type != 'GPU'
+#except:
+#  # Invalid device or cannot modify virtual devices once initialized.
+#  print('CANNOT DISABLE GPUs')
+#  pass
 
 
 from losses import OPWMetric, triplet_loss
@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 #tf.debugging.set_log_device_placement(True)
-from multiprocessing import Pool
+
 class Timer(object):
     def __init__(self):
         self.start_time = 0
@@ -48,12 +48,16 @@ class Timer(object):
 def compare_sequences(seq1, seq2):
     return False
 
-def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None, save_iters=100):
-    dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
-    dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True).parallelize_extraction().build()
+def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_samples=None, epochs=10, min_distance=None, save_iters=100, batch_size = 16, max_opts=5, binary=False):
+    if binary:
+        dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=True).build()
+        dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=True).build()
+    else:
+        dataset_1 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=False).parallelize_extraction().build()
+        dataset_2 = create_dataset(dataset_name, dataset_path=dataset_path, with_labels=False, shuffle=True, binary=False).parallelize_extraction().build()
     dataset = tf.data.Dataset.zip((dataset_1, dataset_2))
-    opw_metric = OPWMetric(lambda_1=150, lambda_2=0.5)
-    model = PoseEmbeddings(image_size=(100, 100), use_l2_normalization=True)
+    opw_metric = OPWMetric(lambda_1=100, lambda_2=0.25)
+    model = PoseEmbeddings(image_size=(224, 224), use_l2_normalization=True, base='cnn')
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
     margin_f = 0.1
     margin = tf.constant(0.1)
@@ -83,11 +87,15 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
     if min_distance is None:
         print('Estimating of minimal distance. This can take a while')
         distances = []
-        for sequences in tqdm(dataset.take(20), total=20):
-            if compare_sequences(sequences[0], sequences[1]):
+        for s1,s2 in tqdm(dataset.take(20), total=20):
+            if compare_sequences(s1, s2):
                 print('Samples equal...')
                 continue
-            sequences_phi = [model.predict(sequences[0], batch_size=8), model.predict(sequences[1], batch_size=8)]
+            # num_seq_1, num_seq_2 = s1.shape[0], s2.shape[0]
+            # s1 = s1[:min(num_seq_1, batch_size*max_opts)]
+            # s2 = s2[:min(num_seq_2, batch_size*max_opts)]
+            sequences_phi = [model.predict(s1, batch_size=8), model.predict(s2, batch_size=8)]
+            
             distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
             distances.append(distance)
         if plotting:
@@ -105,12 +113,20 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
         losses = 0
         cnt = 0
         save_iters_cnt = 0
-        for sequences in dataset:
+        for sequence_1, sequence_2 in dataset:
             cnt += 1
             print('processing seg cnt=', cnt)
             # TODO: use tf.equal all or smth like that. Do not use numpy()
-            if compare_sequences(sequences[0], sequences[1]):
+            # Force reduction of frames
+            # num_seq_1, num_seq_2 = sequence_1.shape[0], sequence_2.shape[0]
+            # sequence_1 = sequence_1[:min(num_seq_1, batch_size*max_opts)]
+            # sequence_2 = sequence_2[:min(num_seq_2, batch_size*max_opts)]
+            # print(sequence_1.shape)
+            # print(sequence_2.shape)
+
+            if compare_sequences(sequence_1, sequence_2):
                 print('Samples equal...')
+                t_dataset.update(1) 
                 continue
 
             if verbose:
@@ -119,7 +135,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # RQ: => Is it possible to optimize transport together with the embedding?
             # RQ: => Can be the mining be part of the optimization? Seems totally like a stupid question but maybe not.
             # FIXME: batch size is hardcoded!
-            sequences_phi = [model.predict(sequences[0], batch_size=8), model.predict(sequences[1], batch_size=8)]
+            sequence_1_phi, sequence_2_phi = (model.predict(sequence_1, batch_size=8), model.predict(sequence_2, batch_size=8))
             if verbose:
                 timer.lap()
                 print('Computing optimal transport...')
@@ -127,17 +143,22 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             # distance, transport = opw_metric(samples[0].reshape((N,-1)), samples[1].reshape((M,-1)))
             # FIXME: poses are in an array?? Why?!
 
-            distance, transport = opw_metric(sequences_phi[0], sequences_phi[1])
+            distance, transport = opw_metric(sequence_1_phi, sequence_2_phi)
+            print('transport: ', transport)
+            print('mean_phi 1', sequence_1_phi.sum())
+            print('mean phi 2', sequence_2_phi.sum())
             min_distance = 0.9 * min_distance + 0.3 * distance
+            print('new min distace: ', min_distance )
             if distance > min_distance:
                 print('Condition not fulfilled > min_distance :', distance, '>', min_distance)
+                t_dataset.update(1)
                 continue
             # TODO: implement print_verbose function as print_verbose("hello world :) ") as in https://stackoverflow.com/questions/5980042/how-to-implement-the-verbose-or-v-option-into-a-script
             if verbose:
                 print('OPW metric distance: ',  distance)
                 timer.lap()
                 print('Computing positive, and negative pairs')
-            num_seq_1, num_seq_2 = sequences[0].shape[0], sequences[1].shape[0]
+            num_seq_1, num_seq_2 = sequence_1.shape[0], sequence_2.shape[0]
             # seq_1_x = sequences[0]
             # seq_2_x = sequences[1]
             # Create anchors
@@ -167,8 +188,8 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             negative_assignment = np.argmax(distance_matrix, axis=1)
             # negative_samples = tf.gather_nd(sequences[1], [[a] for a in negative_assignment])
             # FIXME: distance calculation are repeated? maybe using distance matrix is useful
-            d_p = np.linalg.norm(sequences_phi[0] - sequences_phi[1][positive_assigment], axis=1)
-            d_n = np.linalg.norm(sequences_phi[0] - sequences_phi[1][negative_assignment], axis=1)
+            d_p = np.linalg.norm(sequence_1_phi - sequence_2_phi[positive_assigment], axis=1)
+            d_n = np.linalg.norm(sequence_1_phi - sequence_2_phi[negative_assignment], axis=1)
             # Creating the semi-hard_mask
             # FIXME: as in https://arxiv.org/abs/1503.03832 if no semi-hard sample use the largest negative dist neg sample
             # Creating the hard_mask
@@ -177,12 +198,14 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             if len(hard_indices) == 0:
                 if verbose:
                     print('no semi-hard samples has been found, skipping...')
+                t_dataset.update(1)
                 continue
+            hard_indices = np.random.choice(hard_indices, size=min(batch_size*max_opts, len(hard_indices)))
             positive_assigment = positive_assigment[hard_indices]
             negative_assignment = negative_assignment[hard_indices]
-            anchors = tf.gather(sequences[0], hard_indices)
-            positive_samples = tf.gather(sequences[1], positive_assigment)
-            negative_samples = tf.gather(sequences[1], negative_assignment)
+            anchors = tf.gather(sequence_1, hard_indices)
+            positive_samples = tf.gather(sequence_2, positive_assigment)
+            negative_samples = tf.gather(sequence_2, negative_assignment)
             if verbose:
                 timer.lap()
                 print("number of hard triples = ", sum(hard_mask), ' out of ', len(hard_mask))
@@ -196,7 +219,7 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
             if plotting:
                 cnt_plot = 0
                 S_anchors = anchors.numpy()
-                S_prima = sequences[1].numpy()
+                S_prima = sequence_1.numpy()
                 for orginal, assignment_p, assignment_n in zip(S_anchors, positive_assigment, negative_assignment):
                     cnt_plot += 1
                     plt.figure(figsize=(10, 5))
@@ -213,7 +236,6 @@ def main(dataset_path, dataset_name, saved_model_name, verbose, plotting, plot_s
                     if plot_samples is not None and cnt_plot >= plot_samples:
                         break
             # FIXME: batch size is hardcoded!!
-            batch_size = 16
             current_index = 0
             L = 0
             cnt2 = 0
@@ -281,8 +303,15 @@ if __name__ == '__main__':
                         help="minimal distance to consider sequence within the curriculum learning")
     parser.add_argument('--save-iters', metavar='save-iters', default=100, type=int,
                         help="number of iterations to save weights")
+    parser.add_argument('--batch-size', metavar='batch-size', default=16, type=int,
+                        help="Batch size of optimization steps")
+    parser.add_argument('--max-opts', metavar='max-opts', default=5, type=int,
+                        help="Maximal optimization steps")
+
+    parser.add_argument('--binary', action="store_true",
+                        help="Sets dataset to create/load a binaries files. Meaning that it creates binary files from the orignal dataset.")
 
     args = parser.parse_args()
     print(args)
     main(dataset_path=args.dataset_path, dataset_name=args.dataset_name, saved_model_name=args.saved_model, verbose=args.verbose,
-         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist, save_iters=args.save_iters)
+         plotting=args.plotting, plot_samples=args.plot_samples, epochs=args.epochs, min_distance = args.min_dist, save_iters=args.save_iters, batch_size=args.batch_size, max_opts=args.max_opts, binary=args.binary)
